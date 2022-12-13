@@ -11,17 +11,17 @@ def mermin3():
     qc = QuantumCircuit(3,3)
 
     # Foreman paper GHZ state. This yielded results as high as 3.27.
-    qc.h(0)
-    qc.cnot(0,1)
-    qc.cnot(0,2)
-    qc.s(0)
-    qc.barrier()
-
-    # typical GHZ(+) state
     #qc.h(0)
     #qc.cnot(0,1)
-    #qc.cnot(1,2)
+    #qc.cnot(0,2)
+    #qc.s(0)
     #qc.barrier()
+
+    # typical GHZ(+) state
+    qc.h(0)
+    qc.cnot(0,1)
+    qc.cnot(1,2)
+    qc.barrier()
 
     return qc
 
@@ -75,19 +75,19 @@ def mermin5():
     return qc
 
 # converted the qiskit circuit to pytket circuit, so we can optimize + run now
-state=qiskit_to_tk(mermin5()).copy()
+state=qiskit_to_tk(mermin3()).copy()
 
-# These are the measurements to be performed on the 3/4/5-qubit mermin inequalities
-
+# Mermin measurements for iGHZ state.
 m3=["xxy", "xyx", "yxx", "yyy"]
-coeff_3= [1.0, 1.0, 1.0, -1.0]
-
+coeff_m3= [1.0, 1.0, 1.0, -1.0]
 m4=["xxxy", "xxyx", "xyxx", "yxxx", "xyyy", "yxyy", "yyxy", "yyyx"]
-coeff_4=[1, 1, 1, 1, -1, -1, -1, -1]
-
+coeff_m4=[1, 1, 1, 1, -1, -1, -1, -1]
 m5=["xxxxy", "xxxyx", "xxyxx", "xyxxx", "yxxxx",   "xxyyy", "xyyxy", "xyyyx", "xyxyy", "yyyxx", "yyxyx", "yyxxy", "yxyyx", "yxyxy", "yxxyy", "yyyyy"]
-coeff_5=[1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1]
+coeff_m5=[1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1]
 
+# Svetlichny measurements
+s3=["xxc", "xxd", "xyc", "yxc", "yyd", "yyc", "yxd", "xyd"]
+coeff_s3=[1, 1, 1, 1, -1, -1, -1, -1]
 
 def measurements(string):
     """
@@ -103,15 +103,28 @@ def measurements(string):
             qc.H(i)
 
         # y measurement basis
-        else:
+        elif string[i] == "y":
             qc.Sdg(i)
             qc.H(i)
 
+        # c=y-x/sqrt(2)
+        elif string[i] == "c":
+            qc.Tdg(i)
+            qc.Sdg(i)
+            qc.H(i)
+
+        # equivalent of c'= -(X+Y)/sqrt(2)
+        elif string[i] == "d":
+            qc.T(i)
+            qc.S(i)
+            qc.H(i)
+
+        else:
+            print("ERROR! unrecognized symbol: ",string[i])
+            exit(1)
+
     # barrier used to isolate sections which Pytket can optimize
     qc.add_barrier(range(0,len(string)))
-    #qc.Measure(0,1)
-    #qc.Measure(1,0)
-    #qc.Measure(2,2)
     qc.measure_all()
 
     return qc
@@ -119,20 +132,20 @@ def measurements(string):
 circ_list=[]
 
 # append measurements in x/y bases
-for m in m5:
+for m in s3:
     c = state.copy()
     c.append(measurements(m))
     circ_list.append(c)
     print(tk_to_qiskit(c))
 
-backend = IBMQBackend("ibmq_quito")
-circ_list = backend.get_compiled_circuits(circ_list, optimisation_level=0)
+backend = IBMQBackend("ibmq_lima")
+circ_list = backend.get_compiled_circuits(circ_list, optimisation_level=2)
 
 handle_list = backend.process_circuits(circ_list, n_shots=16384)
 result_list = backend.get_results(handle_list)
 
 expectation = 0
-for coeff, result in zip(coeff_5, result_list):
+for coeff, result in zip(coeff_s3, result_list):
     counts = result.get_counts()
     expectation += coeff * expectation_from_counts(counts)
     print(expectation_from_counts(counts), coeff)
