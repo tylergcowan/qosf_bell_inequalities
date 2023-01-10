@@ -3,6 +3,7 @@ from pytket.extensions.qiskit import IBMQBackend
 from pytket import Circuit
 from pytket.extensions.qiskit import qiskit_to_tk, tk_to_qiskit
 from pytket.utils import expectation_from_counts
+import numpy as np
 
 def mermin3():
     """
@@ -176,7 +177,16 @@ m7=["xxxxxxy", "xxxxxyx", "xxxxyxx", "xxxyxxx", "xxyxxxx", "xyxxxxx", "yxxxxxx",
 
     "yyyyyyy"
     ]
-coeff_m7=[].append([1]*7).append([-1]*35).append([1]*21).append([1])
+coeff_m7=[1, 1, 1, 1, 1, 1, 1,
+
+          -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+          -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+
+          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+
+          -1
+          ]
+
 
 # Svetlichny measurements
 s3=["xxc", "xxd", "xyc", "yxc", "yyd", "yyc", "yxd", "xyd"]
