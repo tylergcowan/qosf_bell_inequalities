@@ -76,7 +76,7 @@ def mermin5():
 
 def mermin6():
     """
-    :return: qc, GHZ state circuit with 5 qubits
+    :return: qc, GHZ state circuit with 6 qubits
     """
     qc = QuantumCircuit(6)
 
@@ -92,8 +92,28 @@ def mermin6():
 
     return qc
 
+def mermin7():
+    """
+    :return: qc, GHZ state circuit with 7 qubits
+    """
+    qc = QuantumCircuit(7)
+
+    # GHZ Foreman state
+    qc.h(0)
+    qc.cnot(0, 1)
+    qc.cnot(0, 2)
+    qc.cnot(0, 3)
+    qc.cnot(0, 4)
+    qc.cnot(0, 5)
+    qc.cnot(0, 6)
+    qc.s(0)
+    qc.barrier()
+
+    return qc
+
+
 # converted the qiskit circuit to pytket circuit, so we can optimize + run now
-state=qiskit_to_tk(mermin6()).copy()
+state=qiskit_to_tk(mermin7()).copy()
 
 # Mermin measurements for iGHZ state.
 m3=["xxy", "xyx", "yxx", "yyy"]
@@ -119,7 +139,44 @@ m6=["xxxxxy", "xxxxyx", "xxxyxx", "xxyxxx", "xyxxxx", "yxxxxx",
 coeff_m6=[1, 1, 1, 1, 1, 1,
           -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
          1, 1, 1, 1, 1, 1]
+m7=["xxxxxxy", "xxxxxyx", "xxxxyxx", "xxxyxxx", "xxyxxxx", "xyxxxxx", "yxxxxxx",
 
+    # 35 with 3 y's
+    "xxxxyyy", "xxxyxyy",
+    "xxxyyxy", "xxxyyyx",
+    "xxyxxyy", "xxyxyxy",
+    "xxyxyyx", "xxyyxxy",
+    "xxyyxyx", "xxyyyxx",
+    "xyxxxyy", "xyxxyxy",
+    "xyxxyyx", "xyxyxxy",
+    "xyxyxyx", "xyxyyxx",
+    "xyyxxxy", "xyyxxyx",
+    "xyyxyxx", "xyyyxxx",
+    "yxxxxyy", "yxxxyxy",
+    "yxxxyyx", "yxxyxxy",
+    "yxxyxyx", "yxxyyxx",
+    "yxyxxxy", "yxyxxyx",
+    "yxyxyxx", "yxyyxxx",
+    "yyxxxxy", "yyxxxyx",
+    "yyxxyxx", "yyxyxxx",
+    "yyyxxxx",
+
+    # 21 with 5 y's
+    "xxyyyyy", "xyxyyyy",
+    "xyyxyyy", "xyyyxyy",
+    "xyyyyxy", "xyyyyyx",
+    "yxxyyyy", "yxyxyyy",
+    "yxyyxyy", "yxyyyxy",
+    "yxyyyyx", "yyxxyyy",
+    "yyxyxyy", "yyxyyxy",
+    "yyxyyyx", "yyyxxyy",
+    "yyyxyxy", "yyyxyyx",
+    "yyyyxxy", "yyyyxyx",
+    "yyyyyxx",
+
+    "yyyyyyy"
+    ]
+coeff_m7=[].append([1]*7).append([-1]*35).append([1]*21).append([1])
 
 # Svetlichny measurements
 s3=["xxc", "xxd", "xyc", "yxc", "yyd", "yyc", "yxd", "xyd"]
@@ -168,7 +225,7 @@ def measurements(string):
 circ_list=[]
 
 # append measurements in x/y bases
-for m in m6:
+for m in m7:
     c = state.copy()
     c.append(measurements(m))
     circ_list.append(c)
@@ -182,7 +239,7 @@ handle_list = backend.process_circuits(circ_list, n_shots=16384)
 result_list = backend.get_results(handle_list)
 
 expectation = 0
-for coeff, result in zip(coeff_m6, result_list):
+for coeff, result in zip(coeff_m7, result_list):
     counts = result.get_counts()
     expectation += coeff * expectation_from_counts(counts)
     print(expectation_from_counts(counts), coeff)
