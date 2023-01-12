@@ -26,6 +26,35 @@ def mermin3():
 
     return qc
 
+def svet3():
+    """
+    :return: qc, GHZ state circuit with 3 qubits
+    """
+    qc = QuantumCircuit(3,3)
+
+    # typical GHZ(+) state
+    qc.h(0)
+    qc.cnot(0,1)
+    qc.cnot(1,2)
+    qc.barrier()
+
+    return qc
+
+def svet4():
+    """
+    :return: qc, GHZ state circuit with 4 qubits
+    """
+    qc = QuantumCircuit(4,4)
+
+    # typical GHZ(+) state
+    qc.h(0)
+    qc.cnot(0,1)
+    qc.cnot(1,2)
+    qc.cnot(2,3)
+    qc.barrier()
+
+    return qc
+
 def mermin4():
     """
     :return: qc, GHZ state circuit with 4 qubits
@@ -114,7 +143,7 @@ def mermin7():
 
 
 # converted the qiskit circuit to pytket circuit, so we can optimize + run now
-state=qiskit_to_tk(mermin7()).copy()
+state=qiskit_to_tk(svet4()).copy()
 
 # Mermin measurements for iGHZ state.
 m3=["xxy", "xyx", "yxx", "yyy"]
@@ -187,10 +216,21 @@ coeff_m7=[1, 1, 1, 1, 1, 1, 1,
           -1
           ]
 
-
 # Svetlichny measurements
 s3=["xxc", "xxd", "xyc", "yxc", "yyd", "yyc", "yxd", "xyd"]
 coeff_s3=[1, 1, 1, 1, -1, -1, -1, -1]
+
+# let's try swapping x and  y.
+#s4=["xxxx", "yxxx", "xyxx", "xxyx", "xxxy", "yyxx", "yxyx", "yxxy",
+#    "xyyx", "xyxy", "xxyy", "yyyx", "yyxy", "yxyy", "xyyy", "yyyy"
+#    ]
+s4=["yyyy", "xyyy", "yxyy", "yyxy", "yyyx", "xxyy", "xyxy", "xyyx",
+    "yxxy", "yxyx", "yyxx", "xxxy", "xxyx", "xyxx", "yxxx", "xxxx"
+    ]
+coeff_s4=[1, -1, -1, -1,
+          -1, -1, -1, -1,
+          -1, -1, -1, 1,
+          1, 1, 1, 1]
 
 def measurements(string):
     """
@@ -235,21 +275,21 @@ def measurements(string):
 circ_list=[]
 
 # append measurements in x/y bases
-for m in m7:
+for m in s4:
     c = state.copy()
     c.append(measurements(m))
     circ_list.append(c)
     print(tk_to_qiskit(c))
 
 
-backend = IBMQBackend("ibm_nairobi")
+backend = IBMQBackend("ibmq_belem")
 circ_list = backend.get_compiled_circuits(circ_list, optimisation_level=2)
 
 handle_list = backend.process_circuits(circ_list, n_shots=16384)
 result_list = backend.get_results(handle_list)
 
 expectation = 0
-for coeff, result in zip(coeff_m7, result_list):
+for coeff, result in zip(coeff_s4, result_list):
     counts = result.get_counts()
     expectation += coeff * expectation_from_counts(counts)
     print(expectation_from_counts(counts), coeff)
