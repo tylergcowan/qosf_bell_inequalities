@@ -114,7 +114,7 @@ def svet4():
 
     return qc
 
-def Inequality(ineq, qubit, device, rep):
+def Inequality(ineq, qubit, device, rep, shots):
     """
     Add documentation here
     :return: expectation: experimental bell-type inequality value
@@ -294,7 +294,7 @@ def Inequality(ineq, qubit, device, rep):
     end = time.time()
     print("compilation finished in : ", end - start, " seconds")
 
-    handle_list = backend.process_circuits(circ_list, n_shots=16384)
+    handle_list = backend.process_circuits(circ_list, n_shots=shots)
     result_list = backend.get_results(handle_list)
 
     expectation = 0
@@ -324,7 +324,7 @@ def Inequality(ineq, qubit, device, rep):
 if __name__ == "__main__":
 
     # Experimentally computed inequality value
-    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=1)
+    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=1, shots=16384)
     print("Inequality value: ", expectation)
 
 
