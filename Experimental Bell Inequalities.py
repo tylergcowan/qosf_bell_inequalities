@@ -114,6 +114,45 @@ def svet4():
 
     return qc
 
+def measurements(string):
+    """
+    :param string: Sequence of bases for measurements (e.g. XXY, YXYY, XXYYX)
+    :return: qc: quantum circuit to project measurements into Y or X bases
+    """
+    qc = Circuit(len(string),len(string))
+
+    for i in range (0,len(string)):
+
+        # x measurement basis
+        if string[i] == "x":
+            qc.H(i)
+
+        # y measurement basis
+        elif string[i] == "y":
+            qc.Sdg(i)
+            qc.H(i)
+
+        # c=y-x/sqrt(2)
+        elif string[i] == "c":
+            qc.Tdg(i)
+            qc.Sdg(i)
+            qc.H(i)
+
+        # equivalent of c'= -(X+Y)/sqrt(2)
+        elif string[i] == "d":
+            qc.T(i)
+            qc.S(i)
+            qc.H(i)
+
+        else:
+            print("ERROR! unrecognized symbol: ",string[i])
+            exit(1)
+
+    # barrier used to isolate sections which Pytket can optimize
+    qc.add_barrier(range(0,len(string)))
+
+    return qc
+
 def Inequality(ineq, qubit, device, rep, shots):
     """
     Add documentation here
@@ -121,7 +160,6 @@ def Inequality(ineq, qubit, device, rep, shots):
     """
 
     ineq=ineq.lower() + str(qubit)
-    print(ineq)
 
     function_dict = {'mermin3': mermin3, 'mermin4': mermin4, 'mermin5': mermin5, 'mermin6': mermin6, 'mermin7': mermin7,
                      'svetlichny3': svet3, 'svetlichny4': svet4}
@@ -220,45 +258,6 @@ def Inequality(ineq, qubit, device, rep, shots):
                      'svetlichny3': coeff_s3, 'svetlichny4': coeff_s4}
 
 
-    def measurements(string):
-        """
-        :param string: Sequence of bases for measurements (e.g. XXY, YXYY, XXYYX)
-        :return: qc: quantum circuit to project measurements into Y or X bases
-        """
-        qc = Circuit(len(string),len(string))
-
-        for i in range (0,len(string)):
-
-            # x measurement basis
-            if string[i] == "x":
-                qc.H(i)
-
-            # y measurement basis
-            elif string[i] == "y":
-                qc.Sdg(i)
-                qc.H(i)
-
-            # c=y-x/sqrt(2)
-            elif string[i] == "c":
-                qc.Tdg(i)
-                qc.Sdg(i)
-                qc.H(i)
-
-            # equivalent of c'= -(X+Y)/sqrt(2)
-            elif string[i] == "d":
-                qc.T(i)
-                qc.S(i)
-                qc.H(i)
-
-            else:
-                print("ERROR! unrecognized symbol: ",string[i])
-                exit(1)
-
-        # barrier used to isolate sections which Pytket can optimize
-        qc.add_barrier(range(0,len(string)))
-
-        return qc
-
     # list of circuits to be compiled and run
     circ_list=[]
 
@@ -324,9 +323,5 @@ def Inequality(ineq, qubit, device, rep, shots):
 if __name__ == "__main__":
 
     # Experimentally computed inequality value
-    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=1, shots=16384)
+    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=32, shots=625)
     print("Inequality value: ", expectation)
-
-
-
-
