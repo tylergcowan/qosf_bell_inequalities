@@ -3,7 +3,9 @@ from pytket.extensions.qiskit import IBMQBackend
 from pytket import Circuit
 from pytket.extensions.qiskit import qiskit_to_tk, tk_to_qiskit
 from pytket.utils import expectation_from_counts
-import numpy as np
+from pytket import OpType
+import collections
+import time
 
 def mermin3():
     """
@@ -23,35 +25,6 @@ def mermin3():
     #qc.cnot(0,1)
     #qc.cnot(1,2)
     #qc.barrier()
-
-    return qc
-
-def svet3():
-    """
-    :return: qc, GHZ state circuit with 3 qubits
-    """
-    qc = QuantumCircuit(3,3)
-
-    # typical GHZ(+) state
-    qc.h(0)
-    qc.cnot(0,1)
-    qc.cnot(1,2)
-    qc.barrier()
-
-    return qc
-
-def svet4():
-    """
-    :return: qc, GHZ state circuit with 4 qubits
-    """
-    qc = QuantumCircuit(4,4)
-
-    # typical GHZ(+) state
-    qc.h(0)
-    qc.cnot(0,1)
-    qc.cnot(1,2)
-    qc.cnot(2,3)
-    qc.barrier()
 
     return qc
 
@@ -141,9 +114,39 @@ def mermin7():
 
     return qc
 
+def svet3():
+    """
+    :return: qc, GHZ state circuit with 3 qubits
+    """
+    qc = QuantumCircuit(3,3)
+
+    # typical GHZ(+) state
+    qc.h(0)
+    qc.cnot(0,1)
+    qc.cnot(1,2)
+    qc.barrier()
+
+    return qc
+
+def svet4():
+    """
+    :return: qc, GHZ state circuit with 4 qubits
+    """
+    qc = QuantumCircuit(4,4)
+
+    # typical GHZ(+) state
+    qc.h(0)
+    qc.cnot(0,1)
+    qc.cnot(1,2)
+    qc.cnot(2,3)
+    qc.barrier()
+
+    return qc
 
 # converted the qiskit circuit to pytket circuit, so we can optimize + run now
-state=qiskit_to_tk(svet4()).copy()
+# generalize this into inequality and qubit
+state=qiskit_to_tk(mermin3()).copy()
+qubit=3
 
 # Mermin measurements for iGHZ state.
 m3=["xxy", "xyx", "yxx", "yyy"]
@@ -266,33 +269,74 @@ def measurements(string):
             print("ERROR! unrecognized symbol: ",string[i])
             exit(1)
 
-    # barrier used to isolate sections which Pytket can optimize
-    qc.add_barrier(range(0,len(string)))
-    qc.measure_all()
+        # barrier used to isolate sections which Pytket can optimize
+        qc.add_barrier(range(0,len(string)))
+        #qc.measure_all()
 
     return qc
 
 circ_list=[]
 
+rep=1
+
 # append measurements in x/y bases
-for m in s4:
+# also do repetitions based on number of midcicuit measurements requested
+for m in m3:
+    # append measurements in x/y bases (just 1 for testing now)
     c = state.copy()
     c.append(measurements(m))
-    circ_list.append(c)
-    print(tk_to_qiskit(c))
+    d = Circuit(0,rep*qubit) # blank, to be appended to
+    for r in range(0,rep):
+        d.append(c)
 
+        # need to specify which measurements go where!
+        for h in range(0,qubit):
+            d.Measure(h,h+(r*qubit))
 
-backend = IBMQBackend("ibmq_belem")
+        d.add_barrier(range(0,qubit))
+
+        for z in range(0,qubit):
+            d.add_gate(OpType.Reset, [z])
+
+    circ_list.append(d)
+    print(tk_to_qiskit(d))
+
+device="ibm_oslo"
+# does this work for simulators as well? Could be useful to check optimal results.
+backend = IBMQBackend(device)
+
+start = time.time()
+print("compiling circuits...")
 circ_list = backend.get_compiled_circuits(circ_list, optimisation_level=2)
+end = time.time()
+print("compilation finished in : ", end - start, " seconds")
 
 handle_list = backend.process_circuits(circ_list, n_shots=16384)
 result_list = backend.get_results(handle_list)
 
 expectation = 0
-for coeff, result in zip(coeff_s4, result_list):
+
+for coeff, result in zip(coeff_m3, result_list):
     counts = result.get_counts()
-    expectation += coeff * expectation_from_counts(counts)
-    print(expectation_from_counts(counts), coeff)
+
+    d = collections.Counter()
+
+    for i in counts:
+
+        val = i
+        count = counts[i]
+
+        # split the tuple into qubit(=3 now) pieces
+        val = tuple(val[x:x + qubit]
+                    for x in range(0, len(val), qubit))
+
+        for k in range(0, len(val)):
+            d[val[k]] = d[val[k]] + count
+
+    expectation += coeff * expectation_from_counts(d)
+    # also print out the correlator string here for clarity
+    print(expectation_from_counts(d), coeff)
+
 
 # computed value of the mermin polynomial
 print("final expectation: ", expectation)

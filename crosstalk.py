@@ -7,16 +7,31 @@ from pytket import OpType
 import collections
 import time
 
-def mermin3():
+def mermin3(parallel):
     """
     :return: qc, GHZ state circuit with 3 qubits, phase of i
     """
-    qc = QuantumCircuit(3,3)
+    if(parallel):
+        qc = QuantumCircuit(6,6)
+        qc.h(0)
+        qc.cnot(0, 1)
+        qc.cnot(0, 2)
+        qc.s(0)
 
-    qc.h(0)
-    qc.cnot(0,1)
-    qc.cnot(0,2)
-    qc.s(0)
+        qc.h(3)
+        qc.cnot(3, 4)
+        qc.cnot(3, 5)
+        qc.s(3)
+
+
+    else:
+
+        qc = QuantumCircuit(3,3)
+        qc.h(0)
+        qc.cnot(0, 1)
+        qc.cnot(0, 2)
+        qc.s(0)
+
     qc.barrier()
 
     return qc
@@ -114,46 +129,7 @@ def svet4():
 
     return qc
 
-def measurements(string):
-    """
-    :param string: Sequence of bases for measurements (e.g. XXY, YXYY, XXYYX)
-    :return: qc: quantum circuit to project measurements into Y or X bases
-    """
-    qc = Circuit(len(string),len(string))
-
-    for i in range (0,len(string)):
-
-        # x measurement basis
-        if string[i] == "x":
-            qc.H(i)
-
-        # y measurement basis
-        elif string[i] == "y":
-            qc.Sdg(i)
-            qc.H(i)
-
-        # c=y-x/sqrt(2)
-        elif string[i] == "c":
-            qc.Tdg(i)
-            qc.Sdg(i)
-            qc.H(i)
-
-        # equivalent of c'= -(X+Y)/sqrt(2)
-        elif string[i] == "d":
-            qc.T(i)
-            qc.S(i)
-            qc.H(i)
-
-        else:
-            print("ERROR! unrecognized symbol: ",string[i])
-            exit(1)
-
-    # barrier used to isolate sections which Pytket can optimize
-    qc.add_barrier(range(0,len(string)))
-
-    return qc
-
-def Inequality(ineq, qubit, device, rep, shots):
+def Inequality(ineq, qubit, device, rep, shots, parallel):
     """
     Add documentation here
     :return: expectation: experimental bell-type inequality value
@@ -164,7 +140,7 @@ def Inequality(ineq, qubit, device, rep, shots):
     function_dict = {'mermin3': mermin3, 'mermin4': mermin4, 'mermin5': mermin5, 'mermin6': mermin6, 'mermin7': mermin7,
                      'svetlichny3': svet3, 'svetlichny4': svet4}
 
-    state=qiskit_to_tk( function_dict[ineq]() ).copy()
+    state=qiskit_to_tk( function_dict[ineq](parallel) ).copy()
 
     # Mermin measurements for iGHZ state.
     m3=["xxy", "xyx", "yxx", "yyy"]
@@ -258,27 +234,74 @@ def Inequality(ineq, qubit, device, rep, shots):
                      'svetlichny3': coeff_s3, 'svetlichny4': coeff_s4}
 
 
+    def measurements(string, parallel):
+        """
+        :param string: Sequence of bases for measurements (e.g. XXY, YXYY, XXYYX)
+        :return: qc: quantum circuit to project measurements into Y or X bases
+        """
+        if (parallel):
+            string=string+string
+            print("parallel string: ", string)
+
+        qc = Circuit(len(string),len(string))
+
+        for i in range (0,len(string)):
+
+            # x measurement basis
+            if string[i] == "x":
+                qc.H(i)
+
+            # y measurement basis
+            elif string[i] == "y":
+                qc.Sdg(i)
+                qc.H(i)
+
+            # c=y-x/sqrt(2)
+            elif string[i] == "c":
+                qc.Tdg(i)
+                qc.Sdg(i)
+                qc.H(i)
+
+            # equivalent of c'= -(X+Y)/sqrt(2)
+            elif string[i] == "d":
+                qc.T(i)
+                qc.S(i)
+                qc.H(i)
+
+            else:
+                print("ERROR! unrecognized symbol: ",string[i])
+                exit(1)
+
+        # barrier used to isolate sections which Pytket can optimize
+        qc.add_barrier(range(0,len(string)))
+
+        return qc
+
     # list of circuits to be compiled and run
     circ_list=[]
+
+    p=1
+    if(parallel):
+        p=2
 
     # append measurements in x/y bases
     # also do repetitions based on number of midcicuit measurements requested
     for m in correlator_dict[ineq]:
 
         c = state.copy()
-        c.append(measurements(m))
-        d = Circuit(0,rep*qubit)
+        c.append(measurements(m, parallel))
+        d = Circuit(0,rep*qubit*p)
 
         for r in range(0,rep):
             d.append(c)
 
             # need to specify which measurements go where!
-            for h in range(0,qubit):
-                d.Measure(h,h+(r*qubit))
+            for h in range(0,qubit*p):
+                d.Measure(h,h+(r*qubit*p))
 
             if (r<rep-1):
-                d.add_barrier(range(0, qubit))
-                for z in range(0,qubit):
+                d.add_barrier(range(0, qubit*p))
+                for z in range(0,qubit*p):
                     d.add_gate(OpType.Reset, [z])
 
         circ_list.append(d)
@@ -293,35 +316,61 @@ def Inequality(ineq, qubit, device, rep, shots):
     end = time.time()
     print("compilation finished in : ", end - start, " seconds")
 
+
     handle_list = backend.process_circuits(circ_list, n_shots=shots)
     result_list = backend.get_results(handle_list)
 
-    expectation = 0
+    expectation1 = 0
+    expectation2 = 0
 
-    for coeff, result in zip(coeff_dict[ineq], result_list):
+    for coeff, result, corr in zip(coeff_dict[ineq], result_list, correlator_dict[ineq]):
 
         counts = result.get_counts()
-        d = collections.Counter()
+
+        # need separate counters I guess when parallelized?
+        d1 = collections.Counter()
+        d2 = collections.Counter()
 
         for i in counts:
             val = i
             count = counts[i]
-
-            # split the tuple into qubit(=3 now) pieces
+            #print(count)
+            # split the tuple into qubit pieces
             val = tuple(val[x:x + qubit]
                         for x in range(0, len(val), qubit))
 
-            for k in range(0, len(val)):
-                d[val[k]] = d[val[k]] + count
+            # I think this is the critical area
+            # this assumes parallelization. will need to fix for all general cases without it!
 
-        expectation += coeff * expectation_from_counts(d)
+            # for the 6 qubits, first 3 go to d1, second 3 go to d2.
+
+
+            # we're only doing 3 qubit pairs so it doesn't need ot be complicated.
+            # i think the above code will work fine. let's see:
+            # len(val) will just = 2
+
+            #print(val)
+            #print(val[0], val[1])
+            d1[val[0]] = d1[val[0]] + count
+            d2[val[1]] = d2[val[1]] + count
+            #for k in range(0, len(val)/2): #len(val)):
+            #    d1[val[k]] = d1[val[k]] + count
+
+            #for k in range(0, len(val)/2): #len(val)):
+            #    d2[val[k]] = d2[val[k]] + count          # but what should count be then?
+
+
+
+        expectation1 += coeff * expectation_from_counts(d1)
+        expectation2 += coeff * expectation_from_counts(d2)
         # also print out the correlator string here for clarity
-        print(expectation_from_counts(d), coeff)
+        print("ineq 1: ", expectation_from_counts(d1), coeff, corr)
+        print("ineq 2: ", expectation_from_counts(d2), coeff, corr)
 
-    return expectation
+    return expectation1, expectation2
 
 if __name__ == "__main__":
 
     # Experimentally computed inequality value
-    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=1, shots=16384)
-    print("Inequality value: ", expectation)
+    expectation1, expectation2 = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=1, shots=16384, parallel=True)
+    print("Inequality value: ", expectation1, expectation2)

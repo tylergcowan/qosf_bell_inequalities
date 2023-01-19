@@ -5,6 +5,7 @@ from pytket.extensions.qiskit import qiskit_to_tk, tk_to_qiskit
 from pytket.utils import expectation_from_counts
 from pytket import OpType
 import collections
+import numpy as np
 import time
 
 def mermin3():
@@ -153,13 +154,19 @@ def measurements(string):
 
     return qc
 
-def Inequality(ineq, qubit, device, rep, shots):
+def Inequality(ineq, qubit, device, repp, shots):
     """
     Add documentation here
     :return: expectation: experimental bell-type inequality value
     """
 
+
+
+
+
+
     ineq=ineq.lower() + str(qubit)
+
 
     function_dict = {'mermin3': mermin3, 'mermin4': mermin4, 'mermin5': mermin5, 'mermin6': mermin6, 'mermin7': mermin7,
                      'svetlichny3': svet3, 'svetlichny4': svet4}
@@ -263,26 +270,36 @@ def Inequality(ineq, qubit, device, rep, shots):
 
     # append measurements in x/y bases
     # also do repetitions based on number of midcicuit measurements requested
-    for m in correlator_dict[ineq]:
 
-        c = state.copy()
-        c.append(measurements(m))
-        d = Circuit(0,rep*qubit)
+    # I need to loop over this a few times I believe.
+    # rep neeeds to loop from 1 to 25
+    # at which point the circuit list should be fully assembled and 100 circuits long (for 3 qubit inequality anyway!)
 
-        for r in range(0,rep):
-            d.append(c)
+    for rep in repp:
+        for m in correlator_dict[ineq]:
 
-            # need to specify which measurements go where!
-            for h in range(0,qubit):
-                d.Measure(h,h+(r*qubit))
+            c = state.copy()
+            c.append(measurements(m))
+            d = Circuit(0,rep*qubit)
 
-            if (r<rep-1):
-                d.add_barrier(range(0, qubit))
-                for z in range(0,qubit):
-                    d.add_gate(OpType.Reset, [z])
+            for r in range(0,rep):
+                d.append(c)
 
-        circ_list.append(d)
-        print(tk_to_qiskit(d))
+                # need to specify which measurements go where!
+                for h in range(0,qubit):
+                    d.Measure(h,h+(r*qubit))
+
+                if (r<rep-1):
+                    d.add_barrier(range(0, qubit))
+                    for z in range(0,qubit):
+                        d.add_gate(OpType.Reset, [z])
+
+            circ_list.append(d)
+            print(tk_to_qiskit(d))
+
+
+
+
 
     # does this work for simulators as well? Could be useful to check optimal results.
     backend = IBMQBackend(device)
@@ -293,12 +310,30 @@ def Inequality(ineq, qubit, device, rep, shots):
     end = time.time()
     print("compilation finished in : ", end - start, " seconds")
 
+    # n_shots need to be an array from 20000 to 800! Easy.
+    # shots needs to be the same length as circ_list!
+
+
+    # this will only work for 3 qubit mermin for now. need to generalize!
+    temp=shots
+    shots=np.array([],dtype='i')
+    for sh in temp:
+        shots = np.concatenate((shots,[sh]*4))
+
+    print("shot list: ", shots)
+
     handle_list = backend.process_circuits(circ_list, n_shots=shots)
+
     result_list = backend.get_results(handle_list)
 
     expectation = 0
+    expectation_arr=[]
 
-    for coeff, result in zip(coeff_dict[ineq], result_list):
+    # result list will now have 24 results, not 4!
+    coeffs=coeff_dict[ineq]*5
+    print("coeff list: ", coeffs)
+    z=1
+    for coeff, result in zip(coeffs, result_list):
 
         counts = result.get_counts()
         d = collections.Counter()
@@ -318,10 +353,16 @@ def Inequality(ineq, qubit, device, rep, shots):
         # also print out the correlator string here for clarity
         print(expectation_from_counts(d), coeff)
 
-    return expectation
+        if(z==4):
+            expectation_arr.append([expectation])
+            expectation=0
+            z=0
+        z+=1
+
+    return expectation_arr
 
 if __name__ == "__main__":
 
     # Experimentally computed inequality value
-    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_oslo", rep=1, shots=16384)
-    print("Inequality value: ", expectation)
+    expectation = Inequality(ineq="Mermin", qubit=3, device="ibm_nairobi", repp=[2, 4, 8, 16, 32], shots=[8192, 4096, 2048, 1024, 512])
+    print("Inequality values: ", expectation)
